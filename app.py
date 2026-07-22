@@ -62,6 +62,8 @@ def carregar_dados(nome_aba, colunas):
         
         for col in ["Valor", "Salario", "Meta"]:
             if col in df.columns:
+                # Tática de resgate: desfaz a máscara brasileira que vem do Google
+                df[col] = df[col].astype(str).str.replace(",", ".")
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
         return df
     except Exception as e:
@@ -71,11 +73,18 @@ def carregar_dados(nome_aba, colunas):
 
 def salvar_dados(df, nome_aba):
     aba = planilha.worksheet(nome_aba)
-    aba.clear()
-    df_clean = df.fillna("")
+    aba.clear() # Limpa a gaveta
+    
+    # --- A JOGADA DE MESTRE: TRADUZIR PARA O GOOGLE SHEETS BRASILEIRO ---
+    df_salvar = df.copy() # Copia para não estragar a tela do aplicativo
+    for col in ["Valor", "Salario", "Meta"]:
+        if col in df_salvar.columns:
+            # Transforma o número Python (1.20) na máscara brasileira ("1,20") para o Google Sheets não engolir o ponto
+            df_salvar[col] = df_salvar[col].apply(lambda x: f"{float(x):.2f}".replace(".", ","))
+            
+    df_clean = df_salvar.fillna("")
     dados_lista = [df_clean.columns.values.tolist()] + df_clean.values.tolist()
-    aba.update(dados_lista)
-
+    aba.update(dados_lista) # Guarda os dados novos
 # ==========================================
 # CARREGANDO A MEMÓRIA DO APP
 # ==========================================
