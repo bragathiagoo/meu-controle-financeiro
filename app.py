@@ -1,7 +1,9 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import os
+import json
+import gspread
+from google.oauth2.service_account import Credentials
 
 # Configuração da página e visual
 st.set_page_config(page_title="Controle Financeiro", layout="wide")
@@ -16,37 +18,55 @@ def formatar_moeda(valor):
         return "R$ 0,00"
 
 # ==========================================
-# BANCO DE DADOS LOCAL (ARQUIVOS CSV)
+# CONEXÃO COM O GOOGLE DRIVE
 # ==========================================
-ARQ_FIXOS = "gastos_fixos.csv"
-ARQ_VARIAVEIS = "gastos_variaveis.csv"
-ARQ_EXTRAS = "receitas_extras.csv"
-ARQ_ECONOMIAS = "economias.csv"
-ARQ_METAS = "metas_mensais.csv"
+@st.cache_resource
+def conectar_google():
+    cred_dict = json.loads(st.secrets["google_credentials"])
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_info(cred_dict, scopes=scopes)
+    cliente = gspread.authorize(creds)
+    # Abre a planilha pela coordenada exata (ID)
+    planilha = cliente.open_by_key("16AOr6INvOqiW-aVz7gf3oniz4J_ZmjH_7I3lKz4UthI")
+    return planilha
 
-def carregar_dados(nome_arquivo, colunas):
-    if os.path.exists(nome_arquivo):
-        df = pd.read_csv(nome_arquivo)
-        # Força os valores numéricos a serem reconhecidos para não quebrar a matemática
-        for col in ["Valor", "Salario", "Meta"]:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
-        return df
-    else:
+planilha = conectar_google()
+
+# Nomes exatos das abas lá no Google
+ABA_FIXOS = "gastos_fixos"
+ABA_VARIAVEIS = "gastos_variaveis"
+ABA_EXTRAS = "receitas_extras"
+ABA_ECONOMIAS = "economias"
+ABA_METAS = "metas_mensais"
+
+def carregar_dados(nome_aba, colunas):
+    aba = planilha.worksheet(nome_aba)
+    dados = aba.get_all_records()
+    df = pd.DataFrame(dados)
+    if df.empty:
         return pd.DataFrame(columns=colunas)
+    
+    # Força os valores numéricos a serem reconhecidos para não quebrar a matemática
+    for col in ["Valor", "Salario", "Meta"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+    return df
 
-def salvar_dados(df, nome_arquivo):
+def salvar_dados(df, nome_aba):
+    aba = planilha.worksheet(nome_aba)
+    aba.clear() # Limpa a gaveta
     df_clean = df.fillna("")
-    df_clean.to_csv(nome_arquivo, index=False)
+    dados_lista = [df_clean.columns.values.tolist()] + df_clean.values.tolist()
+    aba.update(dados_lista) # Guarda os dados novos
 
 # ==========================================
-# CARREGANDO A MEMÓRIA DO APP
+# CARREGANDO A MEMÓRIA DO APP (DIRETO DA NUVEM)
 # ==========================================
-df_fixos = carregar_dados(ARQ_FIXOS, ["Mês", "Descrição", "Valor"])
-df_var = carregar_dados(ARQ_VARIAVEIS, ["Mês", "Descrição", "Valor", "Categoria"])
-df_extras = carregar_dados(ARQ_EXTRAS, ["Mês", "Descrição", "Valor"])
-df_economias = carregar_dados(ARQ_ECONOMIAS, ["Mês", "Descrição", "Valor"])
-df_metas = carregar_dados(ARQ_METAS, ["Mês", "Salario", "Meta"])
+df_fixos = carregar_dados(ABA_FIXOS, ["Mês", "Descrição", "Valor"])
+df_var = carregar_dados(ABA_VARIAVEIS, ["Mês", "Descrição", "Valor", "Categoria"])
+df_extras = carregar_dados(ABA_EXTRAS, ["Mês", "Descrição", "Valor"])
+df_economias = carregar_dados(ABA_ECONOMIAS, ["Mês", "Descrição", "Valor"])
+df_metas = carregar_dados(ABA_METAS, ["Mês", "Salario", "Meta"])
 
 # ==========================================
 # BARRA LATERAL: MÊS E METAS
@@ -68,8 +88,8 @@ with st.sidebar.form("form_metas"):
         df_metas = df_metas[df_metas["Mês"] != mes_selecionado]
         nova_meta = pd.DataFrame([{"Mês": mes_selecionado, "Salario": salario_base, "Meta": meta_investimento}])
         df_metas = pd.concat([df_metas, nova_meta], ignore_index=True)
-        salvar_dados(df_metas, ARQ_METAS)
-        st.success("Salvo no sistema!")
+        salvar_dados(df_metas, ABA_METAS)
+        st.success("Salvo na nuvem!")
         st.rerun()
 
 df_fixos_mes = df_fixos[df_fixos["Mês"] == mes_selecionado].copy()
@@ -94,7 +114,7 @@ with aba1:
             if st.form_submit_button("Adicionar Fixo") and desc_fixo:
                 novo_fixo = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_fixo, "Valor": float(valor_fixo)}])
                 df_fixos = pd.concat([df_fixos, novo_fixo], ignore_index=True)
-                salvar_dados(df_fixos, ARQ_FIXOS)
+                salvar_dados(df_fixos, ABA_FIXOS)
                 st.rerun()
                 
         edit_fixos = st.data_editor(df_fixos_mes[["Descrição", "Valor"]], num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_fixos")
@@ -105,7 +125,7 @@ with aba1:
         if not edit_fixos.reset_index(drop=True).equals(df_fixos_mes[["Descrição", "Valor"]].reset_index(drop=True)):
             edit_fixos["Mês"] = mes_selecionado
             df_fixos = pd.concat([df_fixos[df_fixos["Mês"] != mes_selecionado], edit_fixos], ignore_index=True)
-            salvar_dados(df_fixos, ARQ_FIXOS)
+            salvar_dados(df_fixos, ABA_FIXOS)
             st.rerun()
 
     with col_meio:
@@ -117,7 +137,7 @@ with aba1:
             if st.form_submit_button("Adicionar Variável") and desc_var:
                 novo_var = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_var, "Valor": float(valor_var), "Categoria": categoria_var}])
                 df_var = pd.concat([df_var, novo_var], ignore_index=True)
-                salvar_dados(df_var, ARQ_VARIAVEIS)
+                salvar_dados(df_var, ABA_VARIAVEIS)
                 st.rerun()
                 
         edit_var = st.data_editor(df_var_mes[["Descrição", "Valor", "Categoria"]], num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_var")
@@ -128,7 +148,7 @@ with aba1:
         if not edit_var.reset_index(drop=True).equals(df_var_mes[["Descrição", "Valor", "Categoria"]].reset_index(drop=True)):
             edit_var["Mês"] = mes_selecionado
             df_var = pd.concat([df_var[df_var["Mês"] != mes_selecionado], edit_var], ignore_index=True)
-            salvar_dados(df_var, ARQ_VARIAVEIS)
+            salvar_dados(df_var, ABA_VARIAVEIS)
             st.rerun()
 
     with col_dir:
@@ -139,7 +159,7 @@ with aba1:
             if st.form_submit_button("Adicionar Extra") and desc_extra:
                 novo_extra = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_extra, "Valor": float(valor_extra)}])
                 df_extras = pd.concat([df_extras, novo_extra], ignore_index=True)
-                salvar_dados(df_extras, ARQ_EXTRAS)
+                salvar_dados(df_extras, ABA_EXTRAS)
                 st.rerun()
                 
         edit_extras = st.data_editor(df_extras_mes[["Descrição", "Valor"]], num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_extras")
@@ -150,7 +170,7 @@ with aba1:
         if not edit_extras.reset_index(drop=True).equals(df_extras_mes[["Descrição", "Valor"]].reset_index(drop=True)):
             edit_extras["Mês"] = mes_selecionado
             df_extras = pd.concat([df_extras[df_extras["Mês"] != mes_selecionado], edit_extras], ignore_index=True)
-            salvar_dados(df_extras, ARQ_EXTRAS)
+            salvar_dados(df_extras, ABA_EXTRAS)
             st.rerun()
 
 # --- ABA 2: BALANÇO E MATEMÁTICA ---
@@ -213,12 +233,12 @@ with aba3:
             if st.form_submit_button("Guardar Dinheiro") and desc_economia:
                 nova_economia = pd.DataFrame([{"Mês": mes_economia, "Descrição": desc_economia, "Valor": float(valor_economia)}])
                 df_economias = pd.concat([df_economias, nova_economia], ignore_index=True)
-                salvar_dados(df_economias, ARQ_ECONOMIAS)
+                salvar_dados(df_economias, ABA_ECONOMIAS)
                 st.rerun()
                 
     with col_eco_dir:
         st.subheader("Log de Transações")
         edit_eco = st.data_editor(df_economias, num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_eco")
         if not edit_eco.reset_index(drop=True).equals(df_economias.reset_index(drop=True)):
-            salvar_dados(edit_eco, ARQ_ECONOMIAS)
+            salvar_dados(edit_eco, ABA_ECONOMIAS)
             st.rerun()
