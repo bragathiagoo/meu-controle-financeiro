@@ -147,26 +147,45 @@ with aba1:
             salvar_dados(df_fixos, ABA_FIXOS)
             st.rerun()
 
-    with col_meio:
+with col_meio:
+        st.subheader("🛒 Gasto Variável") # <-- Título restaurado com sucesso!
         with st.form("form_var", clear_on_submit=True):
             desc_var = st.text_input("Descrição")
-            
-            # A NOVA CAIXA: Texto livre, imune a erros de teclado
             valor_var = st.text_input("Valor (R$)", value="", placeholder="Ex: 1,20 ou 1.20")
             categoria_var = st.selectbox("Categoria", ["Mercado", "Restaurante", "Gasolina", "Itens de Casa", "Imprevisto", "Farmácia", "Outros"])
             
             if st.form_submit_button("Adicionar Variável") and desc_var:
-                
-                # O TRADUTOR: Troca vírgula por ponto à força e transforma em número
                 try:
+                    # O Tradutor: transforma a vírgula em ponto para a matemática funcionar
                     valor_num = float(valor_var.replace(",", "."))
                 except:
-                    valor_num = 0.0 # Trava de segurança: se digitar letra, salva zero
+                    valor_num = 0.0 # Segurança contra letras digitadas por engano
                     
                 novo_var = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_var, "Valor": valor_num, "Categoria": categoria_var}])
                 df_var = pd.concat([df_var, novo_var], ignore_index=True)
                 salvar_dados(df_var, ABA_VARIAVEIS)
                 st.rerun()
+                
+        # Tabela blindada para sempre mostrar duas casas decimais
+        edit_var = st.data_editor(
+            df_var_mes[["Descrição", "Valor", "Categoria"]], 
+            num_rows="dynamic", 
+            use_container_width=True, 
+            hide_index=True, 
+            key="ed_var",
+            column_config={
+                "Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f", step=0.01)
+            }
+        )
+        
+        total_var_aba1 = df_var_mes["Valor"].sum() if not df_var_mes.empty else 0.0
+        st.info(f"Total Variável: **{formatar_moeda(total_var_aba1)}**")
+        
+        if not edit_var.reset_index(drop=True).equals(df_var_mes[["Descrição", "Valor", "Categoria"]].reset_index(drop=True)):
+            edit_var["Mês"] = mes_selecionado
+            df_var = pd.concat([df_var[df_var["Mês"] != mes_selecionado], edit_var], ignore_index=True)
+            salvar_dados(df_var, ABA_VARIAVEIS)
+            st.rerun()
                 
         edit_var = st.data_editor(df_var_mes[["Descrição", "Valor", "Categoria"]], num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_var")
         
