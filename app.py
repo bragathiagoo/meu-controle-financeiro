@@ -74,14 +74,16 @@ def salvar_dados(df, nome_aba):
     aba.clear()
     
     df_salvar = df.copy()
-    # Envia os números puros para o Google Sheets (sem máscara de vírgula)
     for col in ["Valor", "Salario", "Meta"]:
         if col in df_salvar.columns:
             df_salvar[col] = pd.to_numeric(df_salvar[col], errors="coerce").fillna(0.0)
             
     df_clean = df_salvar.fillna("")
     dados_lista = [df_clean.columns.values.tolist()] + df_clean.values.tolist()
-    aba.update(dados_lista)
+    
+    # A BALA DE PRATA: value_input_option="RAW"
+    # Impede o Google de tentar "traduzir" o número e estragar os centavos
+    aba.update(dados_lista, value_input_option="RAW")
 
 # ==========================================
 # CARREGANDO A MEMÓRIA DO APP
