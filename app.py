@@ -26,7 +26,7 @@ def conectar_google():
     creds = Credentials.from_service_account_info(cred_dict, scopes=scopes)
     cliente = gspread.authorize(creds)
     # Tática do Sniper: Rota direta pelo link completo
-    planilha = cliente.open_by_url("COLE_O_LINK_INTEIRO_AQUI")
+    planilha = cliente.open_by_url("https://docs.google.com/spreadsheets/d/16A0r6INv0qiW-aVz7gf3oniz4J_ZmjH_7I3lKz4UthI/edit?gid=0#gid=0")
     return planilha
 
 planilha = conectar_google()
