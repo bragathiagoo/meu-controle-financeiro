@@ -39,16 +39,21 @@ ABA_ECONOMIAS = "economias"
 ABA_METAS = "metas_mensais"
 
 def carregar_dados(nome_aba, colunas):
-    aba = planilha.worksheet(nome_aba)
-    dados = aba.get_all_records()
-    df = pd.DataFrame(dados)
-    if df.empty:
-        return pd.DataFrame(columns=colunas)
-    
-    # Força os valores numéricos a serem reconhecidos para não quebrar a matemática
-    for col in ["Valor", "Salario", "Meta"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+    try:
+        aba = planilha.worksheet(nome_aba)
+        dados = aba.get_all_records()
+        df = pd.DataFrame(dados)
+        if df.empty:
+            return pd.DataFrame(columns=colunas)
+        
+        # Força os valores numéricos a serem reconhecidos para não quebrar a matemática
+        for col in ["Valor", "Salario", "Meta"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+        return df
+    except Exception as e:
+        st.error(f"🚨 ERRO CONFESSADO NA ABA '{nome_aba}': {e}")
+        st.stop()
     return df
 
 def salvar_dados(df, nome_aba):
