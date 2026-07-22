@@ -86,7 +86,7 @@ meta_salva = float(metas_do_mes["Meta"].values[0]) if not metas_do_mes.empty els
 st.sidebar.header(f"💰 Entradas de {mes_selecionado}")
 with st.sidebar.form("form_metas"):
     salario_base = st.number_input("Salário Mensal (R$)", min_value=0.0, value=salario_salvo, step=1.0, format="%.2f")
-meta_investimento = st.number_input("Meta de Poupança (R$)", min_value=0.0, value=meta_salva, step=1.0, format="%.2f")
+    meta_investimento = st.number_input("Meta de Poupança (R$)", min_value=0.0, value=meta_salva, step=1.0, format="%.2f")
     
     if st.form_submit_button("Salvar Valores do Mês"):
         df_metas = df_metas[df_metas["Mês"] != mes_selecionado]
