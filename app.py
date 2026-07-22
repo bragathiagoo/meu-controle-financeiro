@@ -29,7 +29,7 @@ def conectar_google():
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(cred_dict, scopes=scopes)
     cliente = gspread.authorize(creds)
-    # Abre a planilha pelo nome exato que você criou
+    # Abrindo a nossa planilha pelo ID definitivo
     planilha = cliente.open_by_key("16AOr6INvOqiW-aVz7gf3oniz4J_ZmjH_7I3lKz4UthI")
     return planilha
 
