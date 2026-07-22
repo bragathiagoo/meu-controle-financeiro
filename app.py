@@ -136,7 +136,7 @@ with aba1:
         st.subheader("🛒 Gasto Variável")
         with st.form("form_var", clear_on_submit=True):
             desc_var = st.text_input("Descrição")
-           valor_var = st.number_input("Valor (R$)", min_value=0.0, step=1.0, format="%.2f")
+            valor_var = st.number_input("Valor (R$)", min_value=0.0, step=1.0, format="%.2f")
             categoria_var = st.selectbox("Categoria", ["Mercado", "Restaurante", "Gasolina", "Itens de Casa", "Imprevisto", "Farmácia", "Outros"])
             if st.form_submit_button("Adicionar Variável") and desc_var:
                 novo_var = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_var, "Valor": float(valor_var), "Categoria": categoria_var}])
