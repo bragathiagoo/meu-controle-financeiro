@@ -89,6 +89,11 @@ with aba1:
                 st.rerun()
                 
         edit_fixos = st.data_editor(df_fixos_mes[["Descrição", "Valor"]], num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_fixos")
+        
+        # SOMA RÁPIDA DOS FIXOS
+        total_fixos_aba1 = df_fixos_mes["Valor"].sum() if not df_fixos_mes.empty else 0.0
+        st.info(f"Total Fixo: **{formatar_moeda(total_fixos_aba1)}**")
+        
         if not edit_fixos.reset_index(drop=True).equals(df_fixos_mes[["Descrição", "Valor"]].reset_index(drop=True)):
             edit_fixos["Mês"] = mes_selecionado
             df_fixos = pd.concat([df_fixos[df_fixos["Mês"] != mes_selecionado], edit_fixos], ignore_index=True)
@@ -108,6 +113,11 @@ with aba1:
                 st.rerun()
                 
         edit_var = st.data_editor(df_var_mes[["Descrição", "Valor", "Categoria"]], num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_var")
+        
+        # SOMA RÁPIDA DOS VARIÁVEIS
+        total_var_aba1 = df_var_mes["Valor"].sum() if not df_var_mes.empty else 0.0
+        st.info(f"Total Variável: **{formatar_moeda(total_var_aba1)}**")
+        
         if not edit_var.reset_index(drop=True).equals(df_var_mes[["Descrição", "Valor", "Categoria"]].reset_index(drop=True)):
             edit_var["Mês"] = mes_selecionado
             df_var = pd.concat([df_var[df_var["Mês"] != mes_selecionado], edit_var], ignore_index=True)
@@ -126,6 +136,11 @@ with aba1:
                 st.rerun()
                 
         edit_extras = st.data_editor(df_extras_mes[["Descrição", "Valor"]], num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_extras")
+        
+        # SOMA RÁPIDA DOS EXTRAS
+        total_extras_aba1 = df_extras_mes["Valor"].sum() if not df_extras_mes.empty else 0.0
+        st.info(f"Total Extra: **{formatar_moeda(total_extras_aba1)}**")
+        
         if not edit_extras.reset_index(drop=True).equals(df_extras_mes[["Descrição", "Valor"]].reset_index(drop=True)):
             edit_extras["Mês"] = mes_selecionado
             df_extras = pd.concat([df_extras[df_extras["Mês"] != mes_selecionado], edit_extras], ignore_index=True)
@@ -145,7 +160,6 @@ with aba2:
     
     saldo_final = receita_total - (total_gastos + meta_investimento)
 
-    # Formatando as caixas métricas com a nossa função do Brasil
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Receita Total", formatar_moeda(receita_total))
     c2.metric("Gastos Totais", formatar_moeda(total_gastos))
@@ -154,7 +168,6 @@ with aba2:
 
     st.divider()
 
-    # Formatando os textos de aviso
     if saldo_final > 0:
         st.success(f"✅ **Balanço Positivo!** Após pagar as contas e separar o investimento, sobraram livres: **{formatar_moeda(saldo_final)}**")
     elif saldo_final < 0:
@@ -179,12 +192,10 @@ with aba2:
 with aba3:
     st.caption("Ambiente de desenvolvimento e depuração do sistema.")
     
-    # O botão mágico que esconde tudo
     with st.expander("Acessar Console de Variáveis"):
         st.header("🏦 Patrimônio Acumulado")
         total_guardado = df_economias["Valor"].sum() if not df_economias.empty else 0.0
         
-        # Formatando o número gigante do patrimônio
         st.metric("Total Acumulado (Todos os meses)", formatar_moeda(total_guardado))
         st.divider()
         
