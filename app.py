@@ -8,9 +8,9 @@ from datetime import datetime
 
 # Configuração da página e visual
 st.set_page_config(page_title="Controle Financeiro", layout="wide")
-st.title("💸 Finanças 2026 ")
+st.title("💸 Meu Controle Financeiro Oficial")
 
-# Função mágica para formatar a moeda no padrão brasileiro (R$ 1.000,00)
+# Função mágica para formatar a moeda no padrão brasileiro
 def formatar_moeda(valor):
     try:
         valor_float = float(valor)
@@ -18,15 +18,13 @@ def formatar_moeda(valor):
     except:
         return "R$ 0,00"
 
-# --- A BLINDAGEM MÁXIMA CONTRA TECLADOS E CELULARES ---
+# --- O TRADUTOR BLINDADO ---
 def limpar_valor(valor_str):
     try:
         v = str(valor_str).strip()
         if v == "": return 0.0
-        # Se digitou 1.200,50
         if "." in v and "," in v:
             v = v.replace(".", "").replace(",", ".")
-        # Se digitou 1,20
         elif "," in v:
             v = v.replace(",", ".")
         return float(v)
@@ -62,7 +60,7 @@ def carregar_dados(nome_aba, colunas):
         
         for col in ["Valor", "Salario", "Meta"]:
             if col in df.columns:
-                # Tática de resgate: desfaz a máscara brasileira que vem do Google
+                # Limpeza de segurança na leitura
                 df[col] = df[col].astype(str).str.replace(",", ".")
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
         return df
@@ -73,18 +71,18 @@ def carregar_dados(nome_aba, colunas):
 
 def salvar_dados(df, nome_aba):
     aba = planilha.worksheet(nome_aba)
-    aba.clear() # Limpa a gaveta
+    aba.clear()
     
-    # --- A JOGADA DE MESTRE: TRADUZIR PARA O GOOGLE SHEETS BRASILEIRO ---
-    df_salvar = df.copy() # Copia para não estragar a tela do aplicativo
+    df_salvar = df.copy()
+    # Envia os números puros para o Google Sheets (sem máscara de vírgula)
     for col in ["Valor", "Salario", "Meta"]:
         if col in df_salvar.columns:
-            # Transforma o número Python (1.20) na máscara brasileira ("1,20") para o Google Sheets não engolir o ponto
-            df_salvar[col] = df_salvar[col].apply(lambda x: f"{float(x):.2f}".replace(".", ","))
+            df_salvar[col] = pd.to_numeric(df_salvar[col], errors="coerce").fillna(0.0)
             
     df_clean = df_salvar.fillna("")
     dados_lista = [df_clean.columns.values.tolist()] + df_clean.values.tolist()
-    aba.update(dados_lista) # Guarda os dados novos
+    aba.update(dados_lista)
+
 # ==========================================
 # CARREGANDO A MEMÓRIA DO APP
 # ==========================================
@@ -116,12 +114,10 @@ meta_salva = float(metas_do_mes["Meta"].values[0]) if not metas_do_mes.empty els
 
 st.sidebar.header(f"💰 Entradas de {mes_selecionado}")
 with st.sidebar.form("form_metas"):
-    # Convertemos para texto para evitar a guerra com o teclado
     salario_base_str = st.text_input("Salário Mensal (R$)", value=f"{salario_salvo:.2f}")
     meta_investimento_str = st.text_input("Meta de Poupança (R$)", value=f"{meta_salva:.2f}")
     submit_metas = st.form_submit_button("Salvar Valores do Mês")
 
-# Processa os valores da barra lateral independentemente do clique
 salario_base = limpar_valor(salario_base_str)
 meta_investimento = limpar_valor(meta_investimento_str)
 
