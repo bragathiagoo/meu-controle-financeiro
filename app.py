@@ -100,8 +100,8 @@ meta_salva = float(metas_do_mes["Meta"].values[0]) if not metas_do_mes.empty els
 
 st.sidebar.header(f"💰 Entradas de {mes_selecionado}")
 with st.sidebar.form("form_metas"):
-    salario_base = st.number_input("Salário Mensal (R$)", min_value=0.0, value=salario_salvo, step=1.0, format="%.2f")
-    meta_investimento = st.number_input("Meta de Poupança (R$)", min_value=0.0, value=meta_salva, step=1.0, format="%.2f")
+    salario_base = st.number_input("Salário Mensal (R$)", min_value=0.0, value=salario_salvo, step=0.01, format="%.2f")
+    meta_investimento = st.number_input("Meta de Poupança (R$)", min_value=0.0, value=meta_salva, step=0.01, format="%.2f")
     
     if st.form_submit_button("Salvar Valores do Mês"):
         df_metas = df_metas[df_metas["Mês"] != mes_selecionado]
@@ -129,7 +129,7 @@ with aba1:
         st.subheader("📋 Gasto Fixo")
         with st.form("form_fixo", clear_on_submit=True):
             desc_fixo = st.text_input("Descrição")
-            valor_fixo = st.number_input("Valor (R$)", min_value=0.0, step=1.0, format="%.2f")
+            valor_fixo = st.number_input("Valor (R$)", min_value=0.0, step=0.01, format="%.2f")
             if st.form_submit_button("Adicionar Fixo") and desc_fixo:
                 novo_fixo = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_fixo, "Valor": float(valor_fixo)}])
                 df_fixos = pd.concat([df_fixos, novo_fixo], ignore_index=True)
@@ -151,7 +151,7 @@ with aba1:
         st.subheader("🛒 Gasto Variável")
         with st.form("form_var", clear_on_submit=True):
             desc_var = st.text_input("Descrição")
-            valor_var = st.number_input("Valor (R$)", min_value=0.0, step=1.0, format="%.2f")
+            valor_var = st.number_input("Valor (R$)", min_value=0.0, step=0.01, format="%.2f")
             categoria_var = st.selectbox("Categoria", ["Mercado", "Restaurante", "Gasolina", "Itens de Casa", "Imprevisto", "Farmácia", "Outros"])
             if st.form_submit_button("Adicionar Variável") and desc_var:
                 novo_var = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_var, "Valor": float(valor_var), "Categoria": categoria_var}])
@@ -174,7 +174,7 @@ with aba1:
         st.subheader("🤑 Renda Extra")
         with st.form("form_extra", clear_on_submit=True):
             desc_extra = st.text_input("Descrição (Ex: PIX)")
-            valor_extra = st.number_input("Valor (R$)", min_value=0.0, step=1.0, format="%.2f")
+            valor_extra = st.number_input("Valor (R$)", min_value=0.0, step=0.01, format="%.2f")
             if st.form_submit_button("Adicionar Extra") and desc_extra:
                 novo_extra = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_extra, "Valor": float(valor_extra)}])
                 df_extras = pd.concat([df_extras, novo_extra], ignore_index=True)
@@ -247,7 +247,7 @@ with aba3:
         with st.form("form_economia", clear_on_submit=True):
             mes_economia = st.selectbox("Mês do depósito", lista_meses, index=lista_meses.index(mes_selecionado))
             desc_economia = st.text_input("Descrição (Ex: Poupança, CDB, Caixinha)")
-            valor_economia = st.number_input("Valor Guardado (R$)", min_value=0.0, step=1.0, format="%.2f")
+            valor_economia = st.number_input("Valor Guardado (R$)", min_value=0.0, step=0.01, format="%.2f")
             
             if st.form_submit_button("Guardar Dinheiro") and desc_economia:
                 nova_economia = pd.DataFrame([{"Mês": mes_economia, "Descrição": desc_economia, "Valor": float(valor_economia)}])
