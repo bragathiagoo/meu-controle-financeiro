@@ -19,18 +19,14 @@ def formatar_moeda(valor):
 
 # ==========================================
 # CONEXÃO COM O GOOGLE DRIVE
-# ==========================================
-# ==========================================
-# CONEXÃO COM O GOOGLE DRIVE
-# ==========================================
 @st.cache_resource
 def conectar_google():
     cred_dict = json.loads(st.secrets["google_credentials"])
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(cred_dict, scopes=scopes)
     cliente = gspread.authorize(creds)
-    # Abre a planilha pela coordenada exata (ID definitivo e corrigido)
-    planilha = cliente.open_by_key("16A0r6INvOqiW-aVz7gf3oniz4J_ZmjH_7I3lKz4UthI")
+    # Tática do Sniper: Rota direta pelo link completo
+    planilha = cliente.open_by_url("COLE_O_LINK_INTEIRO_AQUI")
     return planilha
 
 planilha = conectar_google()
