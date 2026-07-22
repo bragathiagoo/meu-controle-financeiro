@@ -20,21 +20,18 @@ def formatar_moeda(valor):
 # ==========================================
 # CONEXÃO COM O GOOGLE DRIVE
 # ==========================================
+# ==========================================
+# CONEXÃO COM O GOOGLE DRIVE
+# ==========================================
 @st.cache_resource
 def conectar_google():
     cred_dict = json.loads(st.secrets["google_credentials"])
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(cred_dict, scopes=scopes)
     cliente = gspread.authorize(creds)
-    
-    try:
-        # Tentativa de acesso pela coordenada
-        planilha = cliente.open_by_key("16AOr6INvOqiW-aVz7gf3oniz4J_ZmjH_7I3lKz4UthI")
-        return planilha
-    except Exception as e:
-        # Se der erro, ele vai imprimir na tela o motivo exato
-        st.error(f"🚨 ERRO CONFESSADO PELO GOOGLE: {e}")
-        st.stop()
+    # Abre a planilha pela coordenada exata (ID definitivo e corrigido)
+    planilha = cliente.open_by_key("16A0r6INvOqiW-aVz7gf3oniz4J_ZmjH_7I3lKz4UthI")
+    return planilha
 
 planilha = conectar_google()
 
