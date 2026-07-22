@@ -18,6 +18,21 @@ def formatar_moeda(valor):
     except:
         return "R$ 0,00"
 
+# --- A BLINDAGEM MÁXIMA CONTRA TECLADOS E CELULARES ---
+def limpar_valor(valor_str):
+    try:
+        v = str(valor_str).strip()
+        if v == "": return 0.0
+        # Se digitou 1.200,50
+        if "." in v and "," in v:
+            v = v.replace(".", "").replace(",", ".")
+        # Se digitou 1,20
+        elif "," in v:
+            v = v.replace(",", ".")
+        return float(v)
+    except:
+        return 0.0
+
 # ==========================================
 # CONEXÃO COM O GOOGLE DRIVE
 @st.cache_resource
@@ -26,13 +41,11 @@ def conectar_google():
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(cred_dict, scopes=scopes)
     cliente = gspread.authorize(creds)
-    # Tática do Sniper: Rota direta pelo link completo
     planilha = cliente.open_by_url("https://docs.google.com/spreadsheets/d/16A0r6INv0qiW-aVz7gf3oniz4J_ZmjH_7I3lKz4UthI/edit?gid=0#gid=0")
     return planilha
 
 planilha = conectar_google()
 
-# Nomes exatos das abas lá no Google
 ABA_FIXOS = "gastos_fixos"
 ABA_VARIAVEIS = "gastos_variaveis"
 ABA_EXTRAS = "receitas_extras"
@@ -47,7 +60,6 @@ def carregar_dados(nome_aba, colunas):
         if df.empty:
             return pd.DataFrame(columns=colunas)
         
-        # Força os valores numéricos a serem reconhecidos para não quebrar a matemática
         for col in ["Valor", "Salario", "Meta"]:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
@@ -59,13 +71,13 @@ def carregar_dados(nome_aba, colunas):
 
 def salvar_dados(df, nome_aba):
     aba = planilha.worksheet(nome_aba)
-    aba.clear() # Limpa a gaveta
+    aba.clear()
     df_clean = df.fillna("")
     dados_lista = [df_clean.columns.values.tolist()] + df_clean.values.tolist()
-    aba.update(dados_lista) # Guarda os dados novos
+    aba.update(dados_lista)
 
 # ==========================================
-# CARREGANDO A MEMÓRIA DO APP (DIRETO DA NUVEM)
+# CARREGANDO A MEMÓRIA DO APP
 # ==========================================
 df_fixos = carregar_dados(ABA_FIXOS, ["Mês", "Descrição", "Valor"])
 df_var = carregar_dados(ABA_VARIAVEIS, ["Mês", "Descrição", "Valor", "Categoria"])
@@ -78,17 +90,12 @@ df_metas = carregar_dados(ABA_METAS, ["Mês", "Salario", "Meta"])
 # ==========================================
 st.sidebar.header("📅 Mês de Referência")
 lista_meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
-# Pega a data exata de hoje
 hoje = datetime.now()
-
-# Mês atual (1 a 12), subtrai 1 para bater com a lista (0 a 11)
 indice_mes = hoje.month - 1 
 
-# Regra da Virada do Cartão: se for dia 20 ou mais, avança um mês
 if hoje.day >= 20:
     indice_mes += 1
 
-# Trava de Segurança: se passar de Dezembro (índice 11), volta para Janeiro (índice 0)
 if indice_mes > 11:
     indice_mes = 0
 
@@ -100,16 +107,22 @@ meta_salva = float(metas_do_mes["Meta"].values[0]) if not metas_do_mes.empty els
 
 st.sidebar.header(f"💰 Entradas de {mes_selecionado}")
 with st.sidebar.form("form_metas"):
-    salario_base = st.number_input("Salário Mensal (R$)", min_value=0.0, value=salario_salvo, step=0.01, format="%.2f")
-    meta_investimento = st.number_input("Meta de Poupança (R$)", min_value=0.0, value=meta_salva, step=0.01, format="%.2f")
-    
-    if st.form_submit_button("Salvar Valores do Mês"):
-        df_metas = df_metas[df_metas["Mês"] != mes_selecionado]
-        nova_meta = pd.DataFrame([{"Mês": mes_selecionado, "Salario": salario_base, "Meta": meta_investimento}])
-        df_metas = pd.concat([df_metas, nova_meta], ignore_index=True)
-        salvar_dados(df_metas, ABA_METAS)
-        st.success("Salvo na nuvem!")
-        st.rerun()
+    # Convertemos para texto para evitar a guerra com o teclado
+    salario_base_str = st.text_input("Salário Mensal (R$)", value=f"{salario_salvo:.2f}")
+    meta_investimento_str = st.text_input("Meta de Poupança (R$)", value=f"{meta_salva:.2f}")
+    submit_metas = st.form_submit_button("Salvar Valores do Mês")
+
+# Processa os valores da barra lateral independentemente do clique
+salario_base = limpar_valor(salario_base_str)
+meta_investimento = limpar_valor(meta_investimento_str)
+
+if submit_metas:
+    df_metas = df_metas[df_metas["Mês"] != mes_selecionado]
+    nova_meta = pd.DataFrame([{"Mês": mes_selecionado, "Salario": salario_base, "Meta": meta_investimento}])
+    df_metas = pd.concat([df_metas, nova_meta], ignore_index=True)
+    salvar_dados(df_metas, ABA_METAS)
+    st.success("Salvo na nuvem!")
+    st.rerun()
 
 df_fixos_mes = df_fixos[df_fixos["Mês"] == mes_selecionado].copy()
 df_var_mes = df_var[df_var["Mês"] == mes_selecionado].copy()
@@ -129,14 +142,19 @@ with aba1:
         st.subheader("📋 Gasto Fixo")
         with st.form("form_fixo", clear_on_submit=True):
             desc_fixo = st.text_input("Descrição")
-            valor_fixo = st.number_input("Valor (R$)", min_value=0.0, step=0.01, format="%.2f")
+            valor_fixo_str = st.text_input("Valor (R$)", placeholder="Ex: 1,20 ou 1.20")
             if st.form_submit_button("Adicionar Fixo") and desc_fixo:
-                novo_fixo = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_fixo, "Valor": float(valor_fixo)}])
+                v_fixo = limpar_valor(valor_fixo_str)
+                novo_fixo = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_fixo, "Valor": v_fixo}])
                 df_fixos = pd.concat([df_fixos, novo_fixo], ignore_index=True)
                 salvar_dados(df_fixos, ABA_FIXOS)
                 st.rerun()
                 
-        edit_fixos = st.data_editor(df_fixos_mes[["Descrição", "Valor"]], num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_fixos")
+        edit_fixos = st.data_editor(
+            df_fixos_mes[["Descrição", "Valor"]], 
+            num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_fixos",
+            column_config={"Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f", step=0.01)}
+        )
         
         total_fixos_aba1 = df_fixos_mes["Valor"].sum() if not df_fixos_mes.empty else 0.0
         st.info(f"Total Fixo: **{formatar_moeda(total_fixos_aba1)}**")
@@ -151,31 +169,20 @@ with aba1:
         st.subheader("🛒 Gasto Variável")
         with st.form("form_var", clear_on_submit=True):
             desc_var = st.text_input("Descrição")
-            valor_var = st.text_input("Valor (R$)", value="", placeholder="Ex: 1,20 ou 1.20")
+            valor_var_str = st.text_input("Valor (R$)", placeholder="Ex: 1,20 ou 1.20")
             categoria_var = st.selectbox("Categoria", ["Mercado", "Restaurante", "Gasolina", "Itens de Casa", "Imprevisto", "Farmácia", "Outros"])
             
             if st.form_submit_button("Adicionar Variável") and desc_var:
-                try:
-                    # O Tradutor: transforma a vírgula em ponto para a matemática funcionar
-                    valor_num = float(valor_var.replace(",", "."))
-                except:
-                    valor_num = 0.0 # Segurança contra letras digitadas por engano
-                    
-                novo_var = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_var, "Valor": valor_num, "Categoria": categoria_var}])
+                v_var = limpar_valor(valor_var_str)
+                novo_var = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_var, "Valor": v_var, "Categoria": categoria_var}])
                 df_var = pd.concat([df_var, novo_var], ignore_index=True)
                 salvar_dados(df_var, ABA_VARIAVEIS)
                 st.rerun()
                 
-        # Tabela blindada para sempre mostrar duas casas decimais
         edit_var = st.data_editor(
             df_var_mes[["Descrição", "Valor", "Categoria"]], 
-            num_rows="dynamic", 
-            use_container_width=True, 
-            hide_index=True, 
-            key="ed_var",
-            column_config={
-                "Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f", step=0.01)
-            }
+            num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_var",
+            column_config={"Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f", step=0.01)}
         )
         
         total_var_aba1 = df_var_mes["Valor"].sum() if not df_var_mes.empty else 0.0
@@ -191,14 +198,19 @@ with aba1:
         st.subheader("🤑 Renda Extra")
         with st.form("form_extra", clear_on_submit=True):
             desc_extra = st.text_input("Descrição (Ex: PIX)")
-            valor_extra = st.number_input("Valor (R$)", min_value=0.0, step=0.01, format="%.2f")
+            valor_extra_str = st.text_input("Valor (R$)", placeholder="Ex: 1,20 ou 1.20")
             if st.form_submit_button("Adicionar Extra") and desc_extra:
-                novo_extra = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_extra, "Valor": float(valor_extra)}])
+                v_extra = limpar_valor(valor_extra_str)
+                novo_extra = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_extra, "Valor": v_extra}])
                 df_extras = pd.concat([df_extras, novo_extra], ignore_index=True)
                 salvar_dados(df_extras, ABA_EXTRAS)
                 st.rerun()
                 
-        edit_extras = st.data_editor(df_extras_mes[["Descrição", "Valor"]], num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_extras")
+        edit_extras = st.data_editor(
+            df_extras_mes[["Descrição", "Valor"]], 
+            num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_extras",
+            column_config={"Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f", step=0.01)}
+        )
         
         total_extras_aba1 = df_extras_mes["Valor"].sum() if not df_extras_mes.empty else 0.0
         st.info(f"Total Extra: **{formatar_moeda(total_extras_aba1)}**")
@@ -264,17 +276,22 @@ with aba3:
         with st.form("form_economia", clear_on_submit=True):
             mes_economia = st.selectbox("Mês do depósito", lista_meses, index=lista_meses.index(mes_selecionado))
             desc_economia = st.text_input("Descrição (Ex: Poupança, CDB, Caixinha)")
-            valor_economia = st.number_input("Valor Guardado (R$)", min_value=0.0, step=0.01, format="%.2f")
+            valor_economia_str = st.text_input("Valor Guardado (R$)", placeholder="Ex: 1,20 ou 1.20")
             
             if st.form_submit_button("Guardar Dinheiro") and desc_economia:
-                nova_economia = pd.DataFrame([{"Mês": mes_economia, "Descrição": desc_economia, "Valor": float(valor_economia)}])
+                v_eco = limpar_valor(valor_economia_str)
+                nova_economia = pd.DataFrame([{"Mês": mes_economia, "Descrição": desc_economia, "Valor": v_eco}])
                 df_economias = pd.concat([df_economias, nova_economia], ignore_index=True)
                 salvar_dados(df_economias, ABA_ECONOMIAS)
                 st.rerun()
                 
     with col_eco_dir:
         st.subheader("Log de Transações")
-        edit_eco = st.data_editor(df_economias, num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_eco")
+        edit_eco = st.data_editor(
+            df_economias, 
+            num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_eco",
+            column_config={"Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f", step=0.01)}
+        )
         if not edit_eco.reset_index(drop=True).equals(df_economias.reset_index(drop=True)):
             salvar_dados(edit_eco, ABA_ECONOMIAS)
             st.rerun()
