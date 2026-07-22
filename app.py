@@ -18,13 +18,17 @@ def formatar_moeda(valor):
     except:
         return "R$ 0,00"
 
-# --- O TRADUTOR BLINDADO ---
+# --- O TRADUTOR BLINDADO (Versão Nuclear) ---
 def limpar_valor(valor_str):
     try:
         v = str(valor_str).strip()
         if v == "": return 0.0
-        if "." in v and "," in v:
-            v = v.replace(".", "").replace(",", ".")
+        # Resolve conflitos de digitação com milhares
+        if "," in v and "." in v:
+            if v.rfind(",") > v.rfind("."):
+                v = v.replace(".", "").replace(",", ".")
+            else:
+                v = v.replace(",", "")
         elif "," in v:
             v = v.replace(",", ".")
         return float(v)
@@ -53,15 +57,14 @@ ABA_METAS = "metas_mensais"
 def carregar_dados(nome_aba, colunas):
     try:
         aba = planilha.worksheet(nome_aba)
-        dados = aba.get_all_records()
+        # PROTOCOLO ZERO: Exige da nuvem o número matemático puro, ignorando o país
+        dados = aba.get_all_records(value_render_option="UNFORMATTED_VALUE")
         df = pd.DataFrame(dados)
         if df.empty:
             return pd.DataFrame(columns=colunas)
         
         for col in ["Valor", "Salario", "Meta"]:
             if col in df.columns:
-                # Limpeza de segurança na leitura
-                df[col] = df[col].astype(str).str.replace(",", ".")
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
         return df
     except Exception as e:
@@ -79,10 +82,22 @@ def salvar_dados(df, nome_aba):
             df_salvar[col] = pd.to_numeric(df_salvar[col], errors="coerce").fillna(0.0)
             
     df_clean = df_salvar.fillna("")
-    dados_lista = [df_clean.columns.values.tolist()] + df_clean.values.tolist()
     
-    # A BALA DE PRATA: value_input_option="RAW"
-    # Impede o Google de tentar "traduzir" o número e estragar os centavos
+    # PROTOCOLO ZERO: Constrói a lista de envio a vácuo, blindando cada número
+    dados_lista = [df_clean.columns.tolist()]
+    for row in df_clean.itertuples(index=False):
+        linha = []
+        for col, val in zip(df_clean.columns, row):
+            if col in ["Valor", "Salario", "Meta"]:
+                try:
+                    linha.append(float(val)) # Força a ser número
+                except:
+                    linha.append(0.0)
+            else:
+                linha.append(str(val)) # Força a ser texto
+        dados_lista.append(linha)
+        
+    # Envia de forma bruta (RAW)
     aba.update(dados_lista, value_input_option="RAW")
 
 # ==========================================
