@@ -24,7 +24,7 @@ def formatar_moeda(valor):
 # O @st.cache_resource faz o aplicativo logar no Google uma vez só, deixando tudo muito mais rápido
 @st.cache_resource
 def conectar_google():
-    # Puxa o segredo do cofre do Streamlit
+    # Lendo a chave secreta de acesso do cofre
     cred_dict = json.loads(st.secrets["google_credentials"])
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(cred_dict, scopes=scopes)
