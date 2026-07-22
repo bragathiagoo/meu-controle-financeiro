@@ -4,6 +4,7 @@ import plotly.express as px
 import json
 import gspread
 from google.oauth2.service_account import Credentials
+from datetime import datetime
 
 # Configuração da página e visual
 st.set_page_config(page_title="Controle Financeiro", layout="wide")
@@ -77,7 +78,21 @@ df_metas = carregar_dados(ABA_METAS, ["Mês", "Salario", "Meta"])
 # ==========================================
 st.sidebar.header("📅 Mês de Referência")
 lista_meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
-mes_selecionado = st.sidebar.selectbox("Selecione o Mês", lista_meses, index=6)
+# Pega a data exata de hoje
+hoje = datetime.now()
+
+# Mês atual (1 a 12), subtrai 1 para bater com a lista (0 a 11)
+indice_mes = hoje.month - 1 
+
+# Regra da Virada do Cartão: se for dia 20 ou mais, avança um mês
+if hoje.day >= 20:
+    indice_mes += 1
+
+# Trava de Segurança: se passar de Dezembro (índice 11), volta para Janeiro (índice 0)
+if indice_mes > 11:
+    indice_mes = 0
+
+mes_selecionado = st.sidebar.selectbox("Selecione o Mês", lista_meses, index=indice_mes)
 
 metas_do_mes = df_metas[df_metas["Mês"] == mes_selecionado]
 salario_salvo = float(metas_do_mes["Salario"].values[0]) if not metas_do_mes.empty else 5000.0
