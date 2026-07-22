@@ -30,7 +30,7 @@ def conectar_google():
     creds = Credentials.from_service_account_info(cred_dict, scopes=scopes)
     cliente = gspread.authorize(creds)
     # Abre a planilha pelo nome exato que você criou
-    planilha = cliente.open_by_key(open16A0r6INv0qiW-aVz7gf3oniz4J_ZmjH_7I3lKz4UthI)
+    planilha = cliente.open_by_key("16AOr6INvOqiW-aVz7gf3oniz4J_ZmjH_7I3lKz4UthI")
     return planilha
 
 planilha = conectar_google()
