@@ -7,11 +7,12 @@ import plotly.express as px
 st.set_page_config(page_title="Controle Financeiro", layout="wide")
 st.title("💸 Meu Controle Financeiro Oficial")
 
-# Arquivos invisíveis para salvar seus dados
+# 5 Arquivos invisíveis para salvar seus dados
 ARQUIVO_FIXOS = "gastos_fixos.csv"
 ARQUIVO_VARIAVEIS = "gastos_variaveis.csv"
 ARQUIVO_EXTRAS = "receitas_extras.csv"
 ARQUIVO_ECONOMIAS = "economias.csv"
+ARQUIVO_METAS = "metas_mensais.csv" # Novo arquivo para salvar o salário de cada mês!
 
 # Funções blindadas para ler e salvar os dados
 def carregar_dados(arquivo, colunas):
@@ -31,6 +32,7 @@ df_fixos = carregar_dados(ARQUIVO_FIXOS, ["Mês", "Descrição", "Valor"])
 df_var = carregar_dados(ARQUIVO_VARIAVEIS, ["Mês", "Descrição", "Valor", "Categoria"])
 df_extras = carregar_dados(ARQUIVO_EXTRAS, ["Mês", "Descrição", "Valor"])
 df_economias = carregar_dados(ARQUIVO_ECONOMIAS, ["Mês", "Descrição", "Valor"])
+df_metas = carregar_dados(ARQUIVO_METAS, ["Mês", "Salario", "Meta"])
 
 # ==========================================
 # BARRA LATERAL: MÊS E METAS
@@ -39,9 +41,25 @@ st.sidebar.header("📅 Mês de Referência")
 lista_meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
 mes_selecionado = st.sidebar.selectbox("Selecione o Mês", lista_meses, index=6)
 
-st.sidebar.header("💰 Entradas Oficiais")
-salario_base = st.sidebar.number_input("Salário/Receita Mensal (R$)", min_value=0.0, value=5000.0, step=100.0)
-meta_investimento = st.sidebar.number_input("Meta de Poupança do Mês (R$)", min_value=0.0, value=500.0, step=50.0)
+# Puxa o salário e a meta específicos do mês selecionado. Se não tiver, começa com um padrão.
+metas_do_mes = df_metas[df_metas["Mês"] == mes_selecionado]
+salario_salvo = float(metas_do_mes["Salario"].values[0]) if not metas_do_mes.empty else 5000.0
+meta_salva = float(metas_do_mes["Meta"].values[0]) if not metas_do_mes.empty else 500.0
+
+st.sidebar.header(f"💰 Entradas de {mes_selecionado}")
+with st.sidebar.form("form_metas"):
+    salario_base = st.number_input("Salário Mensal (R$)", min_value=0.0, value=salario_salvo, step=100.0)
+    meta_investimento = st.number_input("Meta de Poupança (R$)", min_value=0.0, value=meta_salva, step=50.0)
+    
+    # Botão para travar os valores apenas para este mês
+    if st.form_submit_button("Salvar Valores do Mês"):
+        # Apaga o registro antigo desse mês, se existir
+        df_metas = df_metas[df_metas["Mês"] != mes_selecionado]
+        # Salva o novo valor associado a este mês
+        nova_meta = pd.DataFrame([{"Mês": mes_selecionado, "Salario": salario_base, "Meta": meta_investimento}])
+        df_metas = pd.concat([df_metas, nova_meta], ignore_index=True)
+        salvar_dados(df_metas, ARQUIVO_METAS)
+        st.rerun()
 
 # Filtrando os dados na memória para mostrar SÓ O MÊS SELECIONADO
 df_fixos_mes = df_fixos[df_fixos["Mês"] == mes_selecionado].copy()
