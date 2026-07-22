@@ -8,7 +8,7 @@ from datetime import datetime
 
 # Configuração da página e visual
 st.set_page_config(page_title="Controle Financeiro", layout="wide")
-st.title("💸 Meu Controle Financeiro Oficial")
+st.title("💸 Finanças 2026 ")
 
 # Função mágica para formatar a moeda no padrão brasileiro (R$ 1.000,00)
 def formatar_moeda(valor):
