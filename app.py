@@ -148,13 +148,22 @@ with aba1:
             st.rerun()
 
     with col_meio:
-        st.subheader("🛒 Gasto Variável")
         with st.form("form_var", clear_on_submit=True):
             desc_var = st.text_input("Descrição")
-            valor_var = st.number_input("Valor (R$)", min_value=0.0, step=0.01, format="%.2f")
+            
+            # A NOVA CAIXA: Texto livre, imune a erros de teclado
+            valor_var = st.text_input("Valor (R$)", value="", placeholder="Ex: 1,20 ou 1.20")
             categoria_var = st.selectbox("Categoria", ["Mercado", "Restaurante", "Gasolina", "Itens de Casa", "Imprevisto", "Farmácia", "Outros"])
+            
             if st.form_submit_button("Adicionar Variável") and desc_var:
-                novo_var = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_var, "Valor": float(valor_var), "Categoria": categoria_var}])
+                
+                # O TRADUTOR: Troca vírgula por ponto à força e transforma em número
+                try:
+                    valor_num = float(valor_var.replace(",", "."))
+                except:
+                    valor_num = 0.0 # Trava de segurança: se digitar letra, salva zero
+                    
+                novo_var = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_var, "Valor": valor_num, "Categoria": categoria_var}])
                 df_var = pd.concat([df_var, novo_var], ignore_index=True)
                 salvar_dados(df_var, ABA_VARIAVEIS)
                 st.rerun()
