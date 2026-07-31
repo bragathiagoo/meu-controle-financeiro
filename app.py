@@ -285,35 +285,45 @@ with aba2:
         st.info("Nenhum gasto variável registrado neste mês.")
 
 # --- ABA 3: PATRIMÔNIO ---
+# --- ABA 3: PATRIMÔNIO ---
 with aba3:
     st.header("🏦 Patrimônio Acumulado")
-    total_guardado = df_economias["Valor"].sum() if not df_economias.empty else 0.0
     
-    st.metric("Total Acumulado (Todos os meses)", formatar_moeda(total_guardado))
-    st.divider()
+    # --- BLINDAGEM DE ACESSO (O COFRE) ---
+    senha = st.text_input("Digite o PIN para acessar o cofre:", type="password")
     
-    col_eco_esq, col_eco_dir = st.columns(2)
-    with col_eco_esq:
-        st.subheader("Registrar Nova Entrada")
-        with st.form("form_economia", clear_on_submit=True):
-            mes_economia = st.selectbox("Mês do depósito", lista_meses, index=lista_meses.index(mes_selecionado))
-            desc_economia = st.text_input("Descrição (Ex: Poupança, CDB, Caixinha)")
-            valor_economia_str = st.text_input("Valor Guardado (R$)", placeholder="Ex: 1,20 ou 1.20")
-            
-            if st.form_submit_button("Guardar Dinheiro") and desc_economia:
-                v_eco = limpar_valor(valor_economia_str)
-                nova_economia = pd.DataFrame([{"Mês": mes_economia, "Descrição": desc_economia, "Valor": v_eco}])
-                df_economias = pd.concat([df_economias, nova_economia], ignore_index=True)
-                salvar_dados(df_economias, ABA_ECONOMIAS)
+    if senha == "190":  # <-- Você pode alterar o "190" para a senha que preferir
+        
+        total_guardado = df_economias["Valor"].sum() if not df_economias.empty else 0.0
+        
+        st.metric("Total Acumulado (Todos os meses)", formatar_moeda(total_guardado))
+        st.divider()
+        
+        col_eco_esq, col_eco_dir = st.columns(2)
+        with col_eco_esq:
+            st.subheader("Registrar Nova Entrada")
+            with st.form("form_economia", clear_on_submit=True):
+                mes_economia = st.selectbox("Mês do depósito", lista_meses, index=lista_meses.index(mes_selecionado))
+                desc_economia = st.text_input("Descrição (Ex: Poupança, CDB, Caixinha)")
+                valor_economia_str = st.text_input("Valor Guardado (R$)", placeholder="Ex: 1,20 ou 1.20")
+                
+                if st.form_submit_button("Guardar Dinheiro") and desc_economia:
+                    v_eco = limpar_valor(valor_economia_str)
+                    nova_economia = pd.DataFrame([{"Mês": mes_economia, "Descrição": desc_economia, "Valor": v_eco}])
+                    df_economias = pd.concat([df_economias, nova_economia], ignore_index=True)
+                    salvar_dados(df_economias, ABA_ECONOMIAS)
+                    st.rerun()
+                    
+        with col_eco_dir:
+            st.subheader("Log de Transações")
+            edit_eco = st.data_editor(
+                df_economias, 
+                num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_eco",
+                column_config={"Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f", step=0.01)}
+            )
+            if not edit_eco.reset_index(drop=True).equals(df_economias.reset_index(drop=True)):
+                salvar_dados(edit_eco, ABA_ECONOMIAS)
                 st.rerun()
                 
-    with col_eco_dir:
-        st.subheader("Log de Transações")
-        edit_eco = st.data_editor(
-            df_economias, 
-            num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_eco",
-            column_config={"Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f", step=0.01)}
-        )
-        if not edit_eco.reset_index(drop=True).equals(df_economias.reset_index(drop=True)):
-            salvar_dados(edit_eco, ABA_ECONOMIAS)
-            st.rerun()
+    elif senha != "":
+        st.error("Acesso negado. PIN incorreto.")
