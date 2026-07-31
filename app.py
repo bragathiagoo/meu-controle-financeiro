@@ -192,7 +192,7 @@ with aba1:
         with st.form("form_var", clear_on_submit=True):
             desc_var = st.text_input("Descrição")
             valor_var_str = st.text_input("Valor (R$)", placeholder="Ex: 1,20 ou 1.20")
-            categoria_var = st.selectbox("Categoria", ["Mercado", "Restaurante", "Gasolina", "Itens de Casa", "Imprevisto", "Farmácia", "Outros"])
+            categoria_var = st.selectbox("Categoria", ["🛒Mercado", "🍝Restaurante", "⛽Gasolina", "🏠Itens de Casa", "🛠️Imprevisto", "💊Farmácia", "💡Outros"])
             
             if st.form_submit_button("Adicionar Variável") and desc_var:
                 v_var = limpar_valor(valor_var_str)
