@@ -256,6 +256,20 @@ with aba2:
     
     saldo_final = receita_total - (total_gastos + meta_investimento)
 
+    # --- BOTÃO DE GERAR PDF ---
+    st.divider()
+    col_pdf, _ = st.columns([1, 3])
+    with col_pdf:
+        pdf_pronto = gerar_pdf(mes_selecionado, receita_total, total_fixos, total_var, total_extras, meta_investimento, saldo_final)
+        st.download_button(
+            label="📄 Baixar Relatório em PDF",
+            data=pdf_pronto,
+            file_name=f"Relatorio_{mes_selecionado}.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
+    st.divider()
+
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Receita Total", formatar_moeda(receita_total))
     c2.metric("Gastos Totais", formatar_moeda(total_gastos))
@@ -272,19 +286,64 @@ with aba2:
         st.info(f"⚖️ **Empate Técnico!** Sua receita cobriu exatamente os gastos.")
 
     st.divider()
-    st.subheader("🍕 Para onde foi o dinheiro dos Gastos Variáveis?")
-    if not df_var_mes.empty:
-        gastos_por_categoria = df_var_mes.groupby("Categoria")["Valor"].sum().reset_index()
-        col_grafico, col_tabela = st.columns([2, 1]) 
-        with col_grafico:
-            fig = px.pie(gastos_por_categoria, values="Valor", names="Categoria", hole=0.4)
-            st.plotly_chart(fig, use_container_width=True)
-        with col_tabela:
-            st.dataframe(gastos_por_categoria, use_container_width=True, hide_index=True)
-    else:
-        st.info("Nenhum gasto variável registrado neste mês.")
+    
+    # --- O NOVO PAINEL DE COMANDO (3 GRÁFICOS) ---
+    st.subheader("📊 Raio-X das Despesas")
+    
+    # Divide a tela em três colunas iguais
+    col_graf1, col_graf2, col_graf3 = st.columns(3)
+    
+    with col_graf1:
+        st.markdown("**1. Total: Fixo vs Variável**")
+        if total_gastos > 0:
+            df_macro = pd.DataFrame({
+                "Tipo": ["Fixo", "Variável"],
+                "Valor": [total_fixos, total_var]
+            })
+            fig_macro = px.pie(df_macro, values="Valor", names="Tipo", hole=0.4, color_discrete_sequence=["#FF7F0E", "#1F77B4"])
+            # Coloca o nome e a porcentagem dentro da fatia e esconde a legenda lateral
+            fig_macro.update_traces(textposition='inside', textinfo='percent+label')
+            fig_macro.update_layout(showlegend=False) 
+            st.plotly_chart(fig_macro, use_container_width=True)
+        else:
+            st.info("Nenhuma despesa registrada.")
 
-# --- ABA 3: PATRIMÔNIO ---
+    with col_graf2:
+        st.markdown("**2. Raio-X: Gastos Fixos**")
+        if not df_fixos_mes.empty and total_fixos > 0:
+            # Agrupa os gastos fixos pela Descrição (ex: Aluguel, Internet, etc)
+            gastos_fixos_agrupados = df_fixos_mes.groupby("Descrição")["Valor"].sum().reset_index()
+            fig_fixos = px.pie(gastos_fixos_agrupados, values="Valor", names="Descrição", hole=0.4)
+            fig_fixos.update_traces(textposition='inside', textinfo='percent+label')
+            fig_fixos.update_layout(showlegend=False)
+            st.plotly_chart(fig_fixos, use_container_width=True)
+        else:
+            st.info("Nenhum gasto fixo para detalhar.")
+
+    with col_graf3:
+        st.markdown("**3. Raio-X: Gastos Variáveis**")
+        if not df_var_mes.empty and total_var > 0:
+            # Agrupa os gastos variáveis pela Categoria (ex: Mercado, Gasolina)
+            gastos_var_agrupados = df_var_mes.groupby("Categoria")["Valor"].sum().reset_index()
+            fig_var = px.pie(gastos_var_agrupados, values="Valor", names="Categoria", hole=0.4)
+            fig_var.update_traces(textposition='inside', textinfo='percent+label')
+            fig_var.update_layout(showlegend=False)
+            st.plotly_chart(fig_var, use_container_width=True)
+        else:
+            st.info("Nenhum gasto variável para detalhar.")
+            
+    # Tabela dupla escondida numa aba sanfona para conferência fina
+    with st.expander("Ver tabelas detalhadas (Valores em Reais)"):
+        col_tab1, col_tab2 = st.columns(2)
+        with col_tab1:
+            if not df_fixos_mes.empty and total_fixos > 0:
+                st.markdown("**Gastos Fixos**")
+                st.dataframe(gastos_fixos_agrupados, use_container_width=True, hide_index=True)
+        with col_tab2:
+            if not df_var_mes.empty and total_var > 0:
+                st.markdown("**Gastos Variáveis**")
+                st.dataframe(gastos_var_agrupados, use_container_width=True, hide_index=True)
+
 # --- ABA 3: PATRIMÔNIO ---
 with aba3:
     st.header("🏦 Patrimônio Acumulado")
