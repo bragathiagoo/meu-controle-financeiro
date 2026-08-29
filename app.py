@@ -5,12 +5,13 @@ import json
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
+from fpdf import FPDF
 
 # Configuração da página e visual
 st.set_page_config(page_title="Controle Financeiro", layout="wide")
-st.title("💸 Orçamento & Finanças 💸")
+st.title("💸 Meu Controle Financeiro Oficial")
 
-# Função mágica para formatar a moeda no padrão brasileiro
+# Função mágica para formatar a moeda
 def formatar_moeda(valor):
     try:
         valor_float = float(valor)
@@ -18,12 +19,11 @@ def formatar_moeda(valor):
     except:
         return "R$ 0,00"
 
-# --- O TRADUTOR BLINDADO (Versão Nuclear) ---
+# O TRADUTOR BLINDADO
 def limpar_valor(valor_str):
     try:
         v = str(valor_str).strip()
         if v == "": return 0.0
-        # Resolve conflitos de digitação com milhares
         if "," in v and "." in v:
             if v.rfind(",") > v.rfind("."):
                 v = v.replace(".", "").replace(",", ".")
@@ -34,6 +34,40 @@ def limpar_valor(valor_str):
         return float(v)
     except:
         return 0.0
+
+# --- MOTOR DO RELATÓRIO PDF ---
+def gerar_pdf(mes, receita, gastos_fixos, gastos_var, extras, meta, saldo):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(0, 10, f"Relatorio Financeiro Oficial - {mes}", ln=True, align='C')
+    pdf.ln(10)
+    
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, "1. Entradas", ln=True)
+    pdf.set_font("Arial", '', 12)
+    pdf.cell(0, 8, f"Salario / Base: {formatar_moeda(receita - extras)}", ln=True)
+    pdf.cell(0, 8, f"Renda Extra: {formatar_moeda(extras)}", ln=True)
+    pdf.cell(0, 8, f"Receita Total: {formatar_moeda(receita)}", ln=True)
+    pdf.ln(5)
+    
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, "2. Saidas e Metas", ln=True)
+    pdf.set_font("Arial", '', 12)
+    pdf.cell(0, 8, f"Gastos Fixos: {formatar_moeda(gastos_fixos)}", ln=True)
+    pdf.cell(0, 8, f"Gastos Variaveis: {formatar_moeda(gastos_var)}", ln=True)
+    pdf.cell(0, 8, f"Meta de Poupanca: {formatar_moeda(meta)}", ln=True)
+    pdf.ln(5)
+    
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, "3. Balanco Final", ln=True)
+    pdf.set_font("Arial", 'B', 14)
+    if saldo >= 0:
+        pdf.cell(0, 10, f"Saldo Livre (Positivo): {formatar_moeda(saldo)}", ln=True)
+    else:
+        pdf.cell(0, 10, f"Saldo Livre (Negativo): {formatar_moeda(saldo)}", ln=True)
+        
+    return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
 # CONEXÃO COM O GOOGLE DRIVE
@@ -57,12 +91,10 @@ ABA_METAS = "metas_mensais"
 def carregar_dados(nome_aba, colunas):
     try:
         aba = planilha.worksheet(nome_aba)
-        # PROTOCOLO ZERO: Exige da nuvem o número matemático puro, ignorando o país
         dados = aba.get_all_records(value_render_option="UNFORMATTED_VALUE")
         df = pd.DataFrame(dados)
         if df.empty:
             return pd.DataFrame(columns=colunas)
-        
         for col in ["Valor", "Salario", "Meta"]:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
@@ -75,29 +107,24 @@ def carregar_dados(nome_aba, colunas):
 def salvar_dados(df, nome_aba):
     aba = planilha.worksheet(nome_aba)
     aba.clear()
-    
     df_salvar = df.copy()
     for col in ["Valor", "Salario", "Meta"]:
         if col in df_salvar.columns:
             df_salvar[col] = pd.to_numeric(df_salvar[col], errors="coerce").fillna(0.0)
-            
     df_clean = df_salvar.fillna("")
     
-    # PROTOCOLO ZERO: Constrói a lista de envio a vácuo, blindando cada número
     dados_lista = [df_clean.columns.tolist()]
     for row in df_clean.itertuples(index=False):
         linha = []
         for col, val in zip(df_clean.columns, row):
             if col in ["Valor", "Salario", "Meta"]:
                 try:
-                    linha.append(float(val)) # Força a ser número
+                    linha.append(float(val))
                 except:
                     linha.append(0.0)
             else:
-                linha.append(str(val)) # Força a ser texto
+                linha.append(str(val))
         dados_lista.append(linha)
-        
-    # Envia de forma bruta (RAW)
     aba.update(dados_lista, value_input_option="RAW")
 
 # ==========================================
@@ -119,7 +146,6 @@ indice_mes = hoje.month - 1
 
 if hoje.day >= 20:
     indice_mes += 1
-
 if indice_mes > 11:
     indice_mes = 0
 
@@ -178,9 +204,6 @@ with aba1:
             column_config={"Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f", step=0.01)}
         )
         
-        total_fixos_aba1 = df_fixos_mes["Valor"].sum() if not df_fixos_mes.empty else 0.0
-        st.info(f"Total Fixo: **{formatar_moeda(total_fixos_aba1)}**")
-        
         if not edit_fixos.reset_index(drop=True).equals(df_fixos_mes[["Descrição", "Valor"]].reset_index(drop=True)):
             edit_fixos["Mês"] = mes_selecionado
             df_fixos = pd.concat([df_fixos[df_fixos["Mês"] != mes_selecionado], edit_fixos], ignore_index=True)
@@ -192,7 +215,7 @@ with aba1:
         with st.form("form_var", clear_on_submit=True):
             desc_var = st.text_input("Descrição")
             valor_var_str = st.text_input("Valor (R$)", placeholder="Ex: 1,20 ou 1.20")
-            categoria_var = st.selectbox("Categoria", ["🛒Mercado", "🍝Restaurante", "⛽Gasolina", "🏠Itens de Casa", "🛠️Imprevisto", "💊Farmácia", "💡Outros"])
+            categoria_var = st.selectbox("Categoria", ["Mercado", "Restaurante", "Gasolina", "Itens de Casa", "Imprevisto", "Farmácia", "Outros"])
             
             if st.form_submit_button("Adicionar Variável") and desc_var:
                 v_var = limpar_valor(valor_var_str)
@@ -206,9 +229,6 @@ with aba1:
             num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_var",
             column_config={"Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f", step=0.01)}
         )
-        
-        total_var_aba1 = df_var_mes["Valor"].sum() if not df_var_mes.empty else 0.0
-        st.info(f"Total Variável: **{formatar_moeda(total_var_aba1)}**")
         
         if not edit_var.reset_index(drop=True).equals(df_var_mes[["Descrição", "Valor", "Categoria"]].reset_index(drop=True)):
             edit_var["Mês"] = mes_selecionado
@@ -233,9 +253,6 @@ with aba1:
             num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_extras",
             column_config={"Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f", step=0.01)}
         )
-        
-        total_extras_aba1 = df_extras_mes["Valor"].sum() if not df_extras_mes.empty else 0.0
-        st.info(f"Total Extra: **{formatar_moeda(total_extras_aba1)}**")
         
         if not edit_extras.reset_index(drop=True).equals(df_extras_mes[["Descrição", "Valor"]].reset_index(drop=True)):
             edit_extras["Mês"] = mes_selecionado
@@ -290,18 +307,13 @@ with aba2:
     # --- O NOVO PAINEL DE COMANDO (3 GRÁFICOS) ---
     st.subheader("📊 Raio-X das Despesas")
     
-    # Divide a tela em três colunas iguais
     col_graf1, col_graf2, col_graf3 = st.columns(3)
     
     with col_graf1:
         st.markdown("**1. Total: Fixo vs Variável**")
         if total_gastos > 0:
-            df_macro = pd.DataFrame({
-                "Tipo": ["Fixo", "Variável"],
-                "Valor": [total_fixos, total_var]
-            })
+            df_macro = pd.DataFrame({"Tipo": ["Fixo", "Variável"], "Valor": [total_fixos, total_var]})
             fig_macro = px.pie(df_macro, values="Valor", names="Tipo", hole=0.4, color_discrete_sequence=["#FF7F0E", "#1F77B4"])
-            # Coloca o nome e a porcentagem dentro da fatia e esconde a legenda lateral
             fig_macro.update_traces(textposition='inside', textinfo='percent+label')
             fig_macro.update_layout(showlegend=False) 
             st.plotly_chart(fig_macro, use_container_width=True)
@@ -311,7 +323,6 @@ with aba2:
     with col_graf2:
         st.markdown("**2. Raio-X: Gastos Fixos**")
         if not df_fixos_mes.empty and total_fixos > 0:
-            # Agrupa os gastos fixos pela Descrição (ex: Aluguel, Internet, etc)
             gastos_fixos_agrupados = df_fixos_mes.groupby("Descrição")["Valor"].sum().reset_index()
             fig_fixos = px.pie(gastos_fixos_agrupados, values="Valor", names="Descrição", hole=0.4)
             fig_fixos.update_traces(textposition='inside', textinfo='percent+label')
@@ -323,7 +334,6 @@ with aba2:
     with col_graf3:
         st.markdown("**3. Raio-X: Gastos Variáveis**")
         if not df_var_mes.empty and total_var > 0:
-            # Agrupa os gastos variáveis pela Categoria (ex: Mercado, Gasolina)
             gastos_var_agrupados = df_var_mes.groupby("Categoria")["Valor"].sum().reset_index()
             fig_var = px.pie(gastos_var_agrupados, values="Valor", names="Categoria", hole=0.4)
             fig_var.update_traces(textposition='inside', textinfo='percent+label')
@@ -332,7 +342,6 @@ with aba2:
         else:
             st.info("Nenhum gasto variável para detalhar.")
             
-    # Tabela dupla escondida numa aba sanfona para conferência fina
     with st.expander("Ver tabelas detalhadas (Valores em Reais)"):
         col_tab1, col_tab2 = st.columns(2)
         with col_tab1:
@@ -347,14 +356,10 @@ with aba2:
 # --- ABA 3: PATRIMÔNIO ---
 with aba3:
     st.header("🏦 Patrimônio Acumulado")
-    
-    # --- BLINDAGEM DE ACESSO (O COFRE) ---
     senha = st.text_input("Digite o PIN para acessar o cofre:", type="password")
     
-    if senha == "190":  # <-- Você pode alterar o "190" para a senha que preferir
-        
+    if senha == "190":  
         total_guardado = df_economias["Valor"].sum() if not df_economias.empty else 0.0
-        
         st.metric("Total Acumulado (Todos os meses)", formatar_moeda(total_guardado))
         st.divider()
         
