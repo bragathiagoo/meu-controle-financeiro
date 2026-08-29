@@ -5,7 +5,6 @@ import json
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
-from fpdf import FPDF
 
 # Configuração da página e visual
 st.set_page_config(page_title="Controle Financeiro", layout="wide")
@@ -34,40 +33,6 @@ def limpar_valor(valor_str):
         return float(v)
     except:
         return 0.0
-
-# --- MOTOR DO RELATÓRIO PDF ---
-def gerar_pdf(mes, receita, gastos_fixos, gastos_var, extras, meta, saldo):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, f"Relatorio Financeiro Oficial - {mes}", ln=True, align='C')
-    pdf.ln(10)
-    
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, "1. Entradas", ln=True)
-    pdf.set_font("Arial", '', 12)
-    pdf.cell(0, 8, f"Salario / Base: {formatar_moeda(receita - extras)}", ln=True)
-    pdf.cell(0, 8, f"Renda Extra: {formatar_moeda(extras)}", ln=True)
-    pdf.cell(0, 8, f"Receita Total: {formatar_moeda(receita)}", ln=True)
-    pdf.ln(5)
-    
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, "2. Saidas e Metas", ln=True)
-    pdf.set_font("Arial", '', 12)
-    pdf.cell(0, 8, f"Gastos Fixos: {formatar_moeda(gastos_fixos)}", ln=True)
-    pdf.cell(0, 8, f"Gastos Variaveis: {formatar_moeda(gastos_var)}", ln=True)
-    pdf.cell(0, 8, f"Meta de Poupanca: {formatar_moeda(meta)}", ln=True)
-    pdf.ln(5)
-    
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, "3. Balanco Final", ln=True)
-    pdf.set_font("Arial", 'B', 14)
-    if saldo >= 0:
-        pdf.cell(0, 10, f"Saldo Livre (Positivo): {formatar_moeda(saldo)}", ln=True)
-    else:
-        pdf.cell(0, 10, f"Saldo Livre (Negativo): {formatar_moeda(saldo)}", ln=True)
-        
-    return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
 # CONEXÃO COM O GOOGLE DRIVE
@@ -272,20 +237,6 @@ with aba2:
     receita_total = salario_base + total_extras
     
     saldo_final = receita_total - (total_gastos + meta_investimento)
-
-    # --- BOTÃO DE GERAR PDF ---
-    st.divider()
-    col_pdf, _ = st.columns([1, 3])
-    with col_pdf:
-        pdf_pronto = gerar_pdf(mes_selecionado, receita_total, total_fixos, total_var, total_extras, meta_investimento, saldo_final)
-        st.download_button(
-            label="📄 Baixar Relatório em PDF",
-            data=pdf_pronto,
-            file_name=f"Relatorio_{mes_selecionado}.pdf",
-            mime="application/pdf",
-            use_container_width=True
-        )
-    st.divider()
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Receita Total", formatar_moeda(receita_total))
