@@ -173,11 +173,80 @@ aba1, aba2, aba3 = st.tabs(["📝 Lançamentos do Mês", "📊 Balanço e Gráfi
 # --- ABA 1: LANÇAMENTOS ---
 with aba1:
     st.header(f"Lançamentos de {mes_selecionado}")
-    col_esq, col_meio, col_dir = st.columns(3)
     
-    # --- COLUNA 1: GASTOS FIXOS ---
-    with col_esq:
-        st.subheader("📋 Gasto Fixo")
+    # ==========================================
+    # 1. GASTOS NO DÉBITO (EM CIMA)
+    # ==========================================
+    st.subheader("💳 Gastos no Débito")
+    
+    # Configuração do Montante Inicial
+    with st.expander("⚙️ Definir Montante Inicial para o Débito", expanded=(debito_inicial_salvo == 0)):
+        with st.form("form_debito_inicial"):
+            debito_str = st.text_input("Quanto você separou para gastar no débito neste mês? (R$)", value=f"{debito_inicial_salvo:.2f}")
+            if st.form_submit_button("Salvar Montante"):
+                v_debito = limpar_valor(debito_str)
+                df_metas = df_metas[df_metas["Mês"] != mes_selecionado]
+                nova_meta = pd.DataFrame([{"Mês": mes_selecionado, "Salario": salario_base, "Meta": meta_investimento, "Debito_Inicial": v_debito}])
+                df_metas = pd.concat([df_metas, nova_meta], ignore_index=True)
+                salvar_dados(df_metas, ABA_METAS)
+                st.success("Montante inicial salvo!")
+                st.rerun()
+
+    # Cálculos do Saldo Disponível
+    total_var = df_var_mes["Valor"].sum() if not df_var_mes.empty else 0.0
+    saldo_restante_debito = debito_inicial_salvo - total_var
+
+    # Indicadores
+    c_deb1, c_deb2 = st.columns(2)
+    c_deb1.metric("Montante Inicial", formatar_moeda(debito_inicial_salvo))
+    c_deb2.metric(
+        "Saldo Restante", 
+        formatar_moeda(saldo_restante_debito), 
+        delta=f"-{formatar_moeda(total_var)} consumidos" if total_var > 0 else "Nenhum gasto",
+        delta_color="normal" if saldo_restante_debito >= 0 else "inverse"
+    )
+    
+    st.write("")
+
+    # Formulário + Tabela de Débito lado a lado
+    col_deb_form, col_deb_tab = st.columns([1, 2])
+    
+    with col_deb_form:
+        with st.form("form_var", clear_on_submit=True):
+            desc_var = st.text_input("Descrição do Gasto")
+            valor_var_str = st.text_input("Valor (R$)", placeholder="Ex: 1,20 ou 1.20")
+            categoria_var = st.selectbox("Categoria", ["Mercado", "Restaurante", "Gasolina", "Itens de Casa", "Imprevisto", "Farmácia", "Outros"])
+            
+            if st.form_submit_button("Adicionar Gasto Débito") and desc_var:
+                v_var = limpar_valor(valor_var_str)
+                novo_var = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_var, "Valor": v_var, "Categoria": categoria_var}])
+                df_var = pd.concat([df_var, novo_var], ignore_index=True)
+                salvar_dados(df_var, ABA_VARIAVEIS)
+                st.rerun()
+
+    with col_deb_tab:
+        edit_var = st.data_editor(
+            df_var_mes[["Descrição", "Valor", "Categoria"]], 
+            num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_var",
+            column_config={"Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f", step=0.01)}
+        )
+        
+        if not edit_var.reset_index(drop=True).equals(df_var_mes[["Descrição", "Valor", "Categoria"]].reset_index(drop=True)):
+            edit_var["Mês"] = mes_selecionado
+            df_var = pd.concat([df_var[df_var["Mês"] != mes_selecionado], edit_var], ignore_index=True)
+            salvar_dados(df_var, ABA_VARIAVEIS)
+            st.rerun()
+
+    st.divider()
+
+    # ==========================================
+    # 2. GASTOS FIXOS E RENDA EXTRA (EM BAIXO)
+    # ==========================================
+    col_fixos, col_extras = st.columns(2)
+    
+    # --- GASTOS FIXOS ---
+    with col_fixos:
+        st.subheader("📋 Gastos Fixos")
         with st.form("form_fixo", clear_on_submit=True):
             opcoes_contas = ["Internet Celular", "Internet Casa", "Água", "Luz", "Faculdade", "Consórcio", "Outro..."]
             conta_selecionada = st.selectbox("Selecione a Conta", opcoes_contas)
@@ -209,66 +278,8 @@ with aba1:
             salvar_dados(df_fixos, ABA_FIXOS)
             st.rerun()
 
-    # --- COLUNA 2: GASTOS VARIÁVEIS (DÉBITO) ---
-    with col_meio:
-        st.subheader("💳 Gastos no Débito")
-        
-        # 1. Campo para configurar quanto dinheiro tem disponível para o débito
-        with st.expander("⚙️ Definir Montante Inicial para o Débito", expanded=(debito_inicial_salvo == 0)):
-            with st.form("form_debito_inicial"):
-                debito_str = st.text_input("Quanto você separou para gastar no débito neste mês? (R$)", value=f"{debito_inicial_salvo:.2f}")
-                if st.form_submit_button("Salvar Montante"):
-                    v_debito = limpar_valor(debito_str)
-                    df_metas = df_metas[df_metas["Mês"] != mes_selecionado]
-                    nova_meta = pd.DataFrame([{"Mês": mes_selecionado, "Salario": salario_base, "Meta": meta_investimento, "Debito_Inicial": v_debito}])
-                    df_metas = pd.concat([df_metas, nova_meta], ignore_index=True)
-                    salvar_dados(df_metas, ABA_METAS)
-                    st.success("Montante inicial salvo!")
-                    st.rerun()
-
-        # 2. Cálculos do Saldo Disponível
-        total_var = df_var_mes["Valor"].sum() if not df_var_mes.empty else 0.0
-        saldo_restante_debito = debito_inicial_salvo - total_var
-
-        # 3. Métricas exibidas no topo da coluna
-        c_deb1, c_deb2 = st.columns(2)
-        c_deb1.metric("Montante Inicial", formatar_moeda(debito_inicial_salvo))
-        c_deb2.metric(
-            "Saldo Restante", 
-            formatar_moeda(saldo_restante_debito), 
-            delta=f"-{formatar_moeda(total_var)} consumidos" if total_var > 0 else "Nenhum gasto",
-            delta_color="normal" if saldo_restante_debito >= 0 else "inverse"
-        )
-        
-        st.divider()
-
-        # 4. Formulário e Tabela de Gastos Variáveis
-        with st.form("form_var", clear_on_submit=True):
-            desc_var = st.text_input("Descrição do Gasto")
-            valor_var_str = st.text_input("Valor (R$)", placeholder="Ex: 1,20 ou 1.20")
-            categoria_var = st.selectbox("Categoria", ["Mercado", "Restaurante", "Gasolina", "Itens de Casa", "Imprevisto", "Farmácia", "Outros"])
-            
-            if st.form_submit_button("Adicionar Gasto Débito") and desc_var:
-                v_var = limpar_valor(valor_var_str)
-                novo_var = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_var, "Valor": v_var, "Categoria": categoria_var}])
-                df_var = pd.concat([df_var, novo_var], ignore_index=True)
-                salvar_dados(df_var, ABA_VARIAVEIS)
-                st.rerun()
-                
-        edit_var = st.data_editor(
-            df_var_mes[["Descrição", "Valor", "Categoria"]], 
-            num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_var",
-            column_config={"Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f", step=0.01)}
-        )
-        
-        if not edit_var.reset_index(drop=True).equals(df_var_mes[["Descrição", "Valor", "Categoria"]].reset_index(drop=True)):
-            edit_var["Mês"] = mes_selecionado
-            df_var = pd.concat([df_var[df_var["Mês"] != mes_selecionado], edit_var], ignore_index=True)
-            salvar_dados(df_var, ABA_VARIAVEIS)
-            st.rerun()
-
-    # --- COLUNA 3: RENDA EXTRA ---
-    with col_dir:
+    # --- RENDA EXTRA ---
+    with col_extras:
         st.subheader("🤑 Renda Extra")
         with st.form("form_extra", clear_on_submit=True):
             desc_extra = st.text_input("Descrição (Ex: PIX)")
