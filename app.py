@@ -10,7 +10,7 @@ from datetime import datetime
 st.set_page_config(page_title="Controle Financeiro", layout="wide")
 st.title("💸 Meu Controle Financeiro Oficial")
 
-# Função mágica para formatar a moeda
+# Função para formatar a moeda
 def formatar_moeda(valor):
     try:
         valor_float = float(valor)
@@ -18,7 +18,7 @@ def formatar_moeda(valor):
     except:
         return "R$ 0,00"
 
-# O TRADUTOR BLINDADO
+# Tratamento de entrada numérica
 def limpar_valor(valor_str):
     try:
         v = str(valor_str).strip()
@@ -60,12 +60,31 @@ def carregar_dados(nome_aba, colunas):
         df = pd.DataFrame(dados)
         if df.empty:
             return pd.DataFrame(columns=colunas)
-        for col in ["Valor", "Salario", "Meta"]:
+        
+        for col in ["Valor", "Salario", "Meta", "Debito_Inicial"]:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+                
+        # --- BLINDAGEM DA COLUNA PAGO (CHECKBOX) ---
+        if "Pago" in colunas:
+            if "Pago" not in df.columns:
+                df["Pago"] = False
+            else:
+                df["Pago"] = df["Pago"].apply(lambda x: True if str(x).strip().upper() == 'TRUE' or x == True else False)
+                
+        # Garantia de colunas esperadas
+        for col in colunas:
+            if col not in df.columns:
+                if col in ["Valor", "Salario", "Meta", "Debito_Inicial"]:
+                    df[col] = 0.0
+                elif col == "Pago":
+                    df[col] = False
+                else:
+                    df[col] = ""
+                
         return df
     except Exception as e:
-        st.error(f"🚨 ERRO CONFESSADO NA ABA '{nome_aba}': {e}")
+        st.error(f"🚨 ERRO AO CARREGAR ABA '{nome_aba}': {e}")
         st.stop()
     return df
 
@@ -73,33 +92,37 @@ def salvar_dados(df, nome_aba):
     aba = planilha.worksheet(nome_aba)
     aba.clear()
     df_salvar = df.copy()
-    for col in ["Valor", "Salario", "Meta"]:
+    
+    for col in ["Valor", "Salario", "Meta", "Debito_Inicial"]:
         if col in df_salvar.columns:
             df_salvar[col] = pd.to_numeric(df_salvar[col], errors="coerce").fillna(0.0)
+            
     df_clean = df_salvar.fillna("")
     
     dados_lista = [df_clean.columns.tolist()]
     for row in df_clean.itertuples(index=False):
         linha = []
         for col, val in zip(df_clean.columns, row):
-            if col in ["Valor", "Salario", "Meta"]:
+            if col in ["Valor", "Salario", "Meta", "Debito_Inicial"]:
                 try:
                     linha.append(float(val))
                 except:
                     linha.append(0.0)
+            elif col == "Pago":
+                linha.append(bool(val))
             else:
                 linha.append(str(val))
         dados_lista.append(linha)
     aba.update(dados_lista, value_input_option="RAW")
 
 # ==========================================
-# CARREGANDO A MEMÓRIA DO APP
+# CARREGANDO DADOS
 # ==========================================
-df_fixos = carregar_dados(ABA_FIXOS, ["Mês", "Descrição", "Valor"])
+df_fixos = carregar_dados(ABA_FIXOS, ["Mês", "Descrição", "Valor", "Pago"])
 df_var = carregar_dados(ABA_VARIAVEIS, ["Mês", "Descrição", "Valor", "Categoria"])
 df_extras = carregar_dados(ABA_EXTRAS, ["Mês", "Descrição", "Valor"])
 df_economias = carregar_dados(ABA_ECONOMIAS, ["Mês", "Descrição", "Valor"])
-df_metas = carregar_dados(ABA_METAS, ["Mês", "Salario", "Meta"])
+df_metas = carregar_dados(ABA_METAS, ["Mês", "Salario", "Meta", "Debito_Inicial"])
 
 # ==========================================
 # BARRA LATERAL: MÊS E METAS
@@ -119,6 +142,7 @@ mes_selecionado = st.sidebar.selectbox("Selecione o Mês", lista_meses, index=in
 metas_do_mes = df_metas[df_metas["Mês"] == mes_selecionado]
 salario_salvo = float(metas_do_mes["Salario"].values[0]) if not metas_do_mes.empty else 5000.0
 meta_salva = float(metas_do_mes["Meta"].values[0]) if not metas_do_mes.empty else 500.0
+debito_inicial_salvo = float(metas_do_mes["Debito_Inicial"].values[0]) if (not metas_do_mes.empty and "Debito_Inicial" in metas_do_mes.columns) else 0.0
 
 st.sidebar.header(f"💰 Entradas de {mes_selecionado}")
 with st.sidebar.form("form_metas"):
@@ -131,7 +155,7 @@ meta_investimento = limpar_valor(meta_investimento_str)
 
 if submit_metas:
     df_metas = df_metas[df_metas["Mês"] != mes_selecionado]
-    nova_meta = pd.DataFrame([{"Mês": mes_selecionado, "Salario": salario_base, "Meta": meta_investimento}])
+    nova_meta = pd.DataFrame([{"Mês": mes_selecionado, "Salario": salario_base, "Meta": meta_investimento, "Debito_Inicial": debito_inicial_salvo}])
     df_metas = pd.concat([df_metas, nova_meta], ignore_index=True)
     salvar_dados(df_metas, ABA_METAS)
     st.success("Salvo na nuvem!")
@@ -142,7 +166,7 @@ df_var_mes = df_var[df_var["Mês"] == mes_selecionado].copy()
 df_extras_mes = df_extras[df_extras["Mês"] == mes_selecionado].copy()
 
 # ==========================================
-# SISTEMA DE ABAS (TABS)
+# SISTEMA DE ABAS
 # ==========================================
 aba1, aba2, aba3 = st.tabs(["📝 Lançamentos do Mês", "📊 Balanço e Gráficos", "🏦 Patrimônio"])
 
@@ -151,38 +175,80 @@ with aba1:
     st.header(f"Lançamentos de {mes_selecionado}")
     col_esq, col_meio, col_dir = st.columns(3)
     
+    # --- COLUNA 1: GASTOS FIXOS ---
     with col_esq:
         st.subheader("📋 Gasto Fixo")
         with st.form("form_fixo", clear_on_submit=True):
-            desc_fixo = st.text_input("Descrição")
+            opcoes_contas = ["Internet Celular", "Internet Casa", "Água", "Luz", "Faculdade", "Consórcio", "Outro..."]
+            conta_selecionada = st.selectbox("Selecione a Conta", opcoes_contas)
+            desc_extra = st.text_input("Se for 'Outro...', digite o nome aqui:")
             valor_fixo_str = st.text_input("Valor (R$)", placeholder="Ex: 1,20 ou 1.20")
-            if st.form_submit_button("Adicionar Fixo") and desc_fixo:
-                v_fixo = limpar_valor(valor_fixo_str)
-                novo_fixo = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_fixo, "Valor": v_fixo}])
-                df_fixos = pd.concat([df_fixos, novo_fixo], ignore_index=True)
-                salvar_dados(df_fixos, ABA_FIXOS)
-                st.rerun()
+            ja_pago = st.checkbox("Já realizei o pagamento")
+            
+            if st.form_submit_button("Adicionar Fixo"):
+                desc_final = desc_extra if conta_selecionada == "Outro..." else conta_selecionada
+                if desc_final:
+                    v_fixo = limpar_valor(valor_fixo_str)
+                    novo_fixo = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_final, "Valor": v_fixo, "Pago": ja_pago}])
+                    df_fixos = pd.concat([df_fixos, novo_fixo], ignore_index=True)
+                    salvar_dados(df_fixos, ABA_FIXOS)
+                    st.rerun()
                 
         edit_fixos = st.data_editor(
-            df_fixos_mes[["Descrição", "Valor"]], 
+            df_fixos_mes[["Descrição", "Valor", "Pago"]], 
             num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_fixos",
-            column_config={"Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f", step=0.01)}
+            column_config={
+                "Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f", step=0.01),
+                "Pago": st.column_config.CheckboxColumn("Pago?", default=False)
+            }
         )
         
-        if not edit_fixos.reset_index(drop=True).equals(df_fixos_mes[["Descrição", "Valor"]].reset_index(drop=True)):
+        if not edit_fixos.reset_index(drop=True).equals(df_fixos_mes[["Descrição", "Valor", "Pago"]].reset_index(drop=True)):
             edit_fixos["Mês"] = mes_selecionado
             df_fixos = pd.concat([df_fixos[df_fixos["Mês"] != mes_selecionado], edit_fixos], ignore_index=True)
             salvar_dados(df_fixos, ABA_FIXOS)
             st.rerun()
 
+    # --- COLUNA 2: GASTOS VARIÁVEIS (DÉBITO) ---
     with col_meio:
-        st.subheader("🛒 Gasto Variável")
+        st.subheader("💳 Gastos no Débito")
+        
+        # 1. Campo para configurar quanto dinheiro tem disponível para o débito
+        with st.expander("⚙️ Definir Montante Inicial para o Débito", expanded=(debito_inicial_salvo == 0)):
+            with st.form("form_debito_inicial"):
+                debito_str = st.text_input("Quanto você separou para gastar no débito neste mês? (R$)", value=f"{debito_inicial_salvo:.2f}")
+                if st.form_submit_button("Salvar Montante"):
+                    v_debito = limpar_valor(debito_str)
+                    df_metas = df_metas[df_metas["Mês"] != mes_selecionado]
+                    nova_meta = pd.DataFrame([{"Mês": mes_selecionado, "Salario": salario_base, "Meta": meta_investimento, "Debito_Inicial": v_debito}])
+                    df_metas = pd.concat([df_metas, nova_meta], ignore_index=True)
+                    salvar_dados(df_metas, ABA_METAS)
+                    st.success("Montante inicial salvo!")
+                    st.rerun()
+
+        # 2. Cálculos do Saldo Disponível
+        total_var = df_var_mes["Valor"].sum() if not df_var_mes.empty else 0.0
+        saldo_restante_debito = debito_inicial_salvo - total_var
+
+        # 3. Métricas exibidas no topo da coluna
+        c_deb1, c_deb2 = st.columns(2)
+        c_deb1.metric("Montante Inicial", formatar_moeda(debito_inicial_salvo))
+        c_deb2.metric(
+            "Saldo Restante", 
+            formatar_moeda(saldo_restante_debito), 
+            delta=f"-{formatar_moeda(total_var)} consumidos" if total_var > 0 else "Nenhum gasto",
+            delta_color="normal" if saldo_restante_debito >= 0 else "inverse"
+        )
+        
+        st.divider()
+
+        # 4. Formulário e Tabela de Gastos Variáveis
         with st.form("form_var", clear_on_submit=True):
-            desc_var = st.text_input("Descrição")
+            desc_var = st.text_input("Descrição do Gasto")
             valor_var_str = st.text_input("Valor (R$)", placeholder="Ex: 1,20 ou 1.20")
             categoria_var = st.selectbox("Categoria", ["Mercado", "Restaurante", "Gasolina", "Itens de Casa", "Imprevisto", "Farmácia", "Outros"])
             
-            if st.form_submit_button("Adicionar Variável") and desc_var:
+            if st.form_submit_button("Adicionar Gasto Débito") and desc_var:
                 v_var = limpar_valor(valor_var_str)
                 novo_var = pd.DataFrame([{"Mês": mes_selecionado, "Descrição": desc_var, "Valor": v_var, "Categoria": categoria_var}])
                 df_var = pd.concat([df_var, novo_var], ignore_index=True)
@@ -201,6 +267,7 @@ with aba1:
             salvar_dados(df_var, ABA_VARIAVEIS)
             st.rerun()
 
+    # --- COLUNA 3: RENDA EXTRA ---
     with col_dir:
         st.subheader("🤑 Renda Extra")
         with st.form("form_extra", clear_on_submit=True):
@@ -225,7 +292,7 @@ with aba1:
             salvar_dados(df_extras, ABA_EXTRAS)
             st.rerun()
 
-# --- ABA 2: BALANÇO E MATEMÁTICA ---
+# --- ABA 2: BALANÇO E GRÁFICOS ---
 with aba2:
     st.subheader(f"Resumo Financeiro de {mes_selecionado}")
     
@@ -255,7 +322,6 @@ with aba2:
 
     st.divider()
     
-    # --- O NOVO PAINEL DE COMANDO (3 GRÁFICOS) ---
     st.subheader("📊 Raio-X das Despesas")
     
     col_graf1, col_graf2, col_graf3 = st.columns(3)
@@ -292,17 +358,6 @@ with aba2:
             st.plotly_chart(fig_var, use_container_width=True)
         else:
             st.info("Nenhum gasto variável para detalhar.")
-            
-    with st.expander("Ver tabelas detalhadas (Valores em Reais)"):
-        col_tab1, col_tab2 = st.columns(2)
-        with col_tab1:
-            if not df_fixos_mes.empty and total_fixos > 0:
-                st.markdown("**Gastos Fixos**")
-                st.dataframe(gastos_fixos_agrupados, use_container_width=True, hide_index=True)
-        with col_tab2:
-            if not df_var_mes.empty and total_var > 0:
-                st.markdown("**Gastos Variáveis**")
-                st.dataframe(gastos_var_agrupados, use_container_width=True, hide_index=True)
 
 # --- ABA 3: PATRIMÔNIO ---
 with aba3:
